@@ -75,6 +75,7 @@ sub creeCompte
     if (checkDir($address, $passwd) == -1)
     {
 	print "Compte existe deja !\n";
+	@_[0]->send("Le compte que vous avez specifie existe deja, vous allez etre redirige au menu de l'accueil\n");
 	return -1;
     }
     else
@@ -84,7 +85,7 @@ sub creeCompte
 	{
 	    mkdir($2);
 	}
-	@_[0]->send("Utilisateur cree");
+	@_[0]->send("Vous avez correctement cree votre compte\n");
     }
     return 1;
 }
@@ -138,23 +139,23 @@ sub server
 	$new_socket->send("250 OK - Bienvenue sur le serveur\r\nMenu principal:\n1 - Connexion\n2 - Creer un compte\n\nVeuillez rentrer le chiffre correspondant a votre choix\n");
 	print "\ncommunication $i\n";
 	$new_socket->recv($ligne, 1024);
-	while ($ligne !~ /^1\n/ && $ligne !~ /^2\n/)
+	while ($isConnected != 1)
 	{
-	    $new_socket->send("Menu principal:\n1 - Connexion\n2 - Creer un compte\n\nVeuillez rentrer le chiffre correspondant a votre choix\n");
-	    $new_socket->recv($ligne, 1024);
+	    while ($ligne !~ /^1\n/ && $ligne !~ /^2\n/)
+	    {
+		$new_socket->send("Menu principal:\n1 - Connexion\n2 - Creer un compte\n\nVeuillez rentrer le chiffre correspondant a votre choix\n");
+		$new_socket->recv($ligne, 1024);
+	    }
+	    if ($ligne =~ /^1\n/)
+	    {
+		$isConnected = connexion($new_socket);
+	    }
+	    if ($ligne =~ /^2\n/)
+	    {
+		$isConnected = creeCompte($new_socket);
+	    }
 	}
-	if ($ligne =~ /^1\n/)
-	{
-	    $isConnected = connexion($new_socket);
-	}
-	if ($ligne =~ /^2\n/)
-	{
-	    $isConnected = creeCompte($new_socket);
-	}
-	if ($isConnected == 1)
-	{
-	    menu($new_socket);
-	}
+	menu($new_socket);
 	print "Fin communication\n";
 	close $new_socket;
 	$i++;
