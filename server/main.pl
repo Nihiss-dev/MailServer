@@ -10,18 +10,6 @@ my $i = 1;
 my $protocole = "TCP";
 my $port = "4242";
 
-sub connexion
-{
-    @_[0]->send("Veuillez rentrer votre adresse mail: ");
-    @_[0]->recv($ligne, 1024);
-    while ($ligne !~ /^[^@]+@.+$/i)
-    {
-	@_[0]->send("Veuillez rentrer une adresse valide\nVeuillez rentrer votre adresse mail: ");
-	@_[0]->recv($ligne, 1024);
-    }
-    return 1;
-}
-
 sub checkDir
 {
     if (@_[0] =~ /(([^@]+)@(.+))/)
@@ -35,11 +23,35 @@ sub checkDir
 	{
 	    if ($_ eq $2)
 	    {
-		return -1;
+		return 0;
 	    }
 	}
 	closedir $dh;
     }
+}
+
+sub connexion
+{
+    @_[0]->send("Veuillez rentrer votre adresse mail: ");
+    @_[0]->recv($ligne, 1024);
+    while ($ligne !~ /^[^@]+@.+$/i)
+    {
+	@_[0]->send("Veuillez rentrer une adresse valide\nVeuillez rentrer votre adresse mail: ");
+	@_[0]->recv($ligne, 1024);
+    }
+    if (checkDir($ligne) == 0)
+    {
+	@_[0]->send("4242 - Veuillez entrez votre mot de passe: ");
+	#TODO check passwd in folder
+	@_[0]->recv($ligne, 1024);
+	print "$ligne\n";
+    }
+    else
+    {
+	@_[0]->send("Cet utilisateur n'existe pas, veuillez verifier que votre compte existe bien, et creer un compte si vous n'en n'avez pas encore\nVous allez etre redirige vers le menu principal\n");
+	return 0;
+    }
+    return 1;
 }
 
 sub creeCompte
@@ -52,15 +64,16 @@ sub creeCompte
 	@_[0]->recv($ligne, 1024);
     }
     $address = $ligne;
-    #TODO verify if address is available then create folder
     $passwdOk = 1;
-    #TODO send msg for asking passwd + hash passwd client side + maybe termcaps for * instead of char
+    #TODO hash passwd client side + maybe termcaps for * instead of char
+    #TODO write hashed passwd in user's folder
     while ($passwdOk != 0)
     {
-	@_[0]->send("Veuillez entrer votre mot de passe: ");
+	@_[0]->send("4242 - Veuillez entrer votre mot de passe: ");
 	@_[0]->recv($ligne, 1024);
+	print "$ligne\n";
 	$passwd = $ligne;
-	@_[0]->send("Confirmez en entrant a nouveau votre mot de passe: ");
+	@_[0]->send("4242 - Confirmez en entrant a nouveau votre mot de passe: ");
 	@_[0]->recv($ligne, 1024);
 	if ($ligne eq $passwd)
 	{
@@ -72,18 +85,22 @@ sub creeCompte
 	}
     }
     $passwd = $ligne;
-    if (checkDir($address, $passwd) == -1)
+    if (checkDir($address) == 0)
     {
-	print "Compte existe deja !\n";
 	@_[0]->send("Le compte que vous avez specifie existe deja, vous allez etre redirige au menu de l'accueil\n");
 	return -1;
     }
     else
     {
-	print "Compte n'existe pas\n";
 	if ($address =~ /(([^@]+)@(.+))/)
 	{
 	    mkdir($2);
+	    $currentDir = getcwd();
+	    $dir = "$currentDir/$2/passwd";
+	    print "$dir\n";
+	    open(PASSWD, ">>$currentDir/$2/passwd") or die "cannot create file\n";
+	    print PASSWD "$passwd";
+	    close(PASSWD);
 	}
 	@_[0]->send("Vous avez correctement cree votre compte\n");
     }

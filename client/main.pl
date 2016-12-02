@@ -2,6 +2,7 @@
 
 use IO::Socket;
 use Getopt::Long;
+use Digest::MD5 qw(md5_hex);
 
 my $destination = "";
 my $port = "";
@@ -28,7 +29,17 @@ sub main
 	$connection->recv($reponse, 1024);
 	print $reponse;
 	$ligne = <STDIN>;
-	$connection->send($ligne);
+	if ($reponse =~ /^(4242)/)
+	{
+	    my $hash = md5_hex($ligne);
+	    $connection->send($hash);
+	}
+	#TODO sometime, somewhere, hash passwd when asked
+	#TODO maybe termcaps for writing passwd
+	else
+	{
+	    $connection->send($ligne);
+	}
     }
 }
 
