@@ -27,6 +27,11 @@ sub main
     {
 	$reponse = "";
 	$connection->recv($reponse, 1024);
+	if ($reponse =~ /^(999)/)
+	{
+	    #disconnect
+	    return 0;
+	}
 	print $reponse;
 	$ligne = <STDIN>;
 	if ($reponse =~ /^(4242)/)
@@ -34,7 +39,6 @@ sub main
 	    my $hash = md5_hex($ligne);
 	    $connection->send($hash);
 	}
-	#TODO sometime, somewhere, hash passwd when asked
 	#TODO maybe termcaps for writing passwd
 	else
 	{

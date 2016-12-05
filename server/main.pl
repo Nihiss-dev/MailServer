@@ -9,13 +9,14 @@ my $ligne = "";
 my $i = 1;
 my $protocole = "TCP";
 my $port = "4242";
+my $dir = "";
 
 sub checkDir
 {
     if (@_[0] =~ /(([^@]+)@(.+))/)
     {
 	print "$2\n";
-	my $dir = getcwd();
+	$dir = getcwd();
 	print "$dir\n";
 	opendir my($dh), $dir or die "cannot open dir\n";
 	my @files = readdir $dh;
@@ -41,17 +42,37 @@ sub connexion
     }
     if (checkDir($ligne) == 0)
     {
-	@_[0]->send("4242 - Veuillez entrez votre mot de passe: ");
-	#TODO check passwd in folder
-	@_[0]->recv($ligne, 1024);
-	print "$ligne\n";
+	if ($ligne =~ /(([^@]+)@(.+))/)
+	{
+	    $file = "$dir/$2/passwd";
+	    print "$file\n";
+	    open(my $fh, '<:encoding(UTF-8)', $file) or die "Cannot open file\n";
+	    my $row = <$fh>;
+	    close($fh);
+	    $passwdOk = 0;
+	    while ($passwdOk == 0)
+	    {
+		@_[0]->send("4242 - Veuillez entrez votre mot de passe: ");
+		@_[0]->recv($ligne, 1024);
+		if ($row eq $ligne)
+		{
+		    $passwdOk = 1;
+		    @_[0]->send("Mot de passe correct, vous allez etre redirige vers le menu principal\n");
+		    return 1;
+		}
+		else
+		{
+		    @_[0]->send("Mot de passe incorrect\n");
+		}
+	    }
+	}
     }
     else
     {
 	@_[0]->send("Cet utilisateur n'existe pas, veuillez verifier que votre compte existe bien, et creer un compte si vous n'en n'avez pas encore\nVous allez etre redirige vers le menu principal\n");
 	return 0;
     }
-    return 1;
+    return 0;
 }
 
 sub creeCompte
@@ -65,8 +86,6 @@ sub creeCompte
     }
     $address = $ligne;
     $passwdOk = 1;
-    #TODO hash passwd client side + maybe termcaps for * instead of char
-    #TODO write hashed passwd in user's folder
     while ($passwdOk != 0)
     {
 	@_[0]->send("4242 - Veuillez entrer votre mot de passe: ");
@@ -109,8 +128,7 @@ sub creeCompte
 
 sub printMenu
 {
-    @_[0]->send("Menu principal:\n");
-    @_[0]->send("1 - Envoyer courriel\n");
+    print "pouet\n";
 }
 
 sub sendMail
@@ -135,13 +153,49 @@ sub sendMail
 
 sub menu
 {
+    #1 send mail
+    #9 disconnect
+    $ligne = "";
     while ($ligne !~ /^quit\r\n$/i)
     {
-	printMenu(@_[0]);
+	#do not remove this print, cannot go ahead without him
+	#black magic
+	@_[0]->send("Menu principal:\n");
+	@_[0]->send("1 - Envoyer courriel\n");
+	@_[0]->send("9 - Deconnection\n");
 	@_[0]->recv($ligne, 1024);
 	if ($ligne =~ /1\n/)
 	{
 	    sendMail(@_[0]);
+	}
+	if ($ligne =~ /9\n/)
+	{
+	    #disconnect
+	    @_[0]->send("999 - Disconnecting\n");
+	    return 1;
+	}
+    }
+    return 1;
+}
+
+sub menuAccueil
+{
+    @_[0]->recv($ligne, 1024);
+    $isConnected = 0;
+    while ($isConnected != 1)
+    {
+	while ($ligne !~ /^1\n/ && $ligne !~ /^2\n/)
+	{
+	    @_[0]->send("Menu principal:\n1 - Connexion\n2 - Creer un compte\n\nVeuillez rentrer le chiffre correspondant a votre choix\n");
+	    @_[0]->recv($ligne, 1024);
+	}
+	if ($ligne =~ /^1\n/)
+	{
+	    $isConnected = connexion(@_[0]);
+	}
+	if ($ligne =~ /^2\n/)
+	{
+	    $isConnected = creeCompte(@_[0]);
 	}
     }
 }
@@ -155,23 +209,7 @@ sub server
 	$new_socket->autoflush(1);
 	$new_socket->send("250 OK - Bienvenue sur le serveur\r\nMenu principal:\n1 - Connexion\n2 - Creer un compte\n\nVeuillez rentrer le chiffre correspondant a votre choix\n");
 	print "\ncommunication $i\n";
-	$new_socket->recv($ligne, 1024);
-	while ($isConnected != 1)
-	{
-	    while ($ligne !~ /^1\n/ && $ligne !~ /^2\n/)
-	    {
-		$new_socket->send("Menu principal:\n1 - Connexion\n2 - Creer un compte\n\nVeuillez rentrer le chiffre correspondant a votre choix\n");
-		$new_socket->recv($ligne, 1024);
-	    }
-	    if ($ligne =~ /^1\n/)
-	    {
-		$isConnected = connexion($new_socket);
-	    }
-	    if ($ligne =~ /^2\n/)
-	    {
-		$isConnected = creeCompte($new_socket);
-	    }
-	}
+	menuAccueil($new_socket);
 	menu($new_socket);
 	print "Fin communication\n";
 	close $new_socket;
