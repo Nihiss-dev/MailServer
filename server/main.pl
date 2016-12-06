@@ -10,6 +10,7 @@ my $i = 1;
 my $protocole = "TCP";
 my $port = "4242";
 my $dir = "";
+my $clientAddress = "";
 
 sub checkDir
 {
@@ -48,6 +49,7 @@ sub connexion
 	    open(my $fh, '<:encoding(UTF-8)', $file) or die "Cannot open file\n";
 	    my $row = <$fh>;
 	    close($fh);
+	    $clientAddress = $ligne;
 	    $passwdOk = 0;
 	    while ($passwdOk == 0)
 	    {
@@ -135,6 +137,7 @@ sub stats
 
 sub sendMail
 {
+    #destinataire
     @_[0]->send("Veuillez entrer l'adresse de la personne a laquelle vous voulez envoyer le courriel: ");
     @_[0]->recv($address, 1024);
     while ($address !~ /(([^@]+)@(.+))\.(.*)/)
@@ -142,19 +145,77 @@ sub sendMail
 	@_[0]->send("500 ERREUR - Adresse incorrecte\r\nVeuillez entrer a nouveau l'adresse de la personne a laquelle vous voulez envoyer le courriel: ");
 	@_[0]->recv($address, 1024);
     }
-    if ($3 eq "reseauglo.ca")
+
+    #CC ?
+    @_[0]->send("Voulez vous ajouter un CC ?\nO - Oui\nN - Non\n");
+    @_[0]->recv($ligne, 1024);
+    while ($ligne !~ /O\n/ && $ligne !~ /N\n/)
     {
-	#write into folder
+	@_[0]->send("Veuillez entrer un choix valide\n");
+	@_[0]->recv($ligne, 1024);
     }
-    #TODO field FROM, CC, Subject, Data from user
-    #TODO if hostname == hostname used for the TP, write mail into the folder
-    my $msg = MIME::Lite->new(From=> "tp4\@ulaval.ca",
-			      To => $address,
-			      Cc => '',
-			      Subject => "exercice 2",
-			      Data => "topkek");
-    $msg->send('smtp', "smtp.ulaval.ca", Timeout=>60);
-    @_[0]->send("250 OK - courriel envoye");
+    if ($ligne =~ /O\n/)
+    {
+	@_[0]->send("Veuillez entrer l'adresse de la personne a laquelle vous voulez envoyer le courriel: ");
+	@_[0]->recv($CC, 1024);
+	while ($CC !~ /(([^@]+)@(.+))\.(.*)/)
+	{
+	    @_[0]->send("500 ERREUR - Adresse incorrecte\r\nVeuillez entrer a nouveau l'adresse de la personne a laquelle vous voulez envoyer le courriel: ");
+	    @_[0]->recv($CC, 1024);
+	}
+    }
+    else
+    {
+	$CC = "";
+    }
+
+    #sujet
+    @_[0]->send("Saisissez le sujet de votre courriel: ");
+    @_[0]->recv($subject, 1024);
+    if ($subject eq "\n")
+    {
+	$dateString = localtime();
+	$subject = "Sans Sujet: $dateString";
+    }
+
+    #data
+    @_[0]->send("Veuillez rentrer le contenu de votre courriel: (4096 characteres restant)\n");
+    @_[0]->recv($data, 4096);
+    $address =~ /(([^@]+)@(.+))\.(.*)/;
+
+    #message goes directly in user folder ?
+    if ($3 eq "reseauglo")
+    {
+	print "reseauglo\n";
+	$currentDir = getcwd();
+	if (checkDir($address) == 0)
+	{
+	    #write into folder
+	    open(MAIL, ">>$currentDir/$2/$subject") or die "cannot create file\n";
+	    print MAIL "From: $clientAddress\nTo: $address\nCc: $CC\nSubject: $subject\n$data\n";
+	    close(MAIL);
+	    @_[0]->send("250 OK - courriel envoye\n");
+	}
+	else
+	{
+	    #error
+	    open(ERROR, ">>$currentDir/DESTERREUR/$subject") or die "cannot create file\n";
+	    print ERROR "From: $clientAddress\nTo: $address\nCc: $CC\nSubject: $subject\n$data\n";
+	    close(ERROR);
+	    @_[0]->send("L'utilisateur que vous avez specifie n'existe pas\n");
+	}
+    }
+    else
+    {
+	#send mail via smtp
+	my $msg = MIME::Lite->new(From=> $clientAddress,
+				  To => $address,
+				  Cc => $CC,
+				  Subject => $subject,
+				  Data => $data);
+	$msg->send('smtp', "smtp.ulaval.ca", Timeout=>60);
+	@_[0]->send("250 OK - courriel envoye\n");
+    }
 }
 
 sub menu
@@ -167,8 +228,7 @@ sub menu
     while ($ligne !~ /^quit\r\n$/i)
     {
 	@_[0]->send("Menu principal:\n");
-	@_[0]->send("1 - Envoyer courriel\n");
-	@_[0]->send("9 - Deconnection\n");
+	@_[0]->send("1 - Envoyer courriel\n2 - Consulter vos courriels\n3 - Statistiques de votre compte\n4 - Deconnection\n");
 	@_[0]->recv($ligne, 1024);
 	if ($ligne =~ /1\n/)
 	{
@@ -235,6 +295,7 @@ sub server
 
 sub main
 {
+    mkdir("DESTERREUR");
     server();
 }
 
