@@ -36,6 +36,11 @@ sub main
 	$ligne = <STDIN>;
 	if ($reponse =~ /^(4242)/)
 	{
+	    while ($ligne !~ /[[:alpha:]]\d/)
+	    {
+		print "Votre mot de passe doit contenir au moins 1 lettre et 1 chiffre\n";
+		$ligne = <STDIN>;
+	    }
 	    my $hash = md5_hex($ligne);
 	    $connection->send($hash);
 	}

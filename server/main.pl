@@ -13,39 +13,38 @@ my $dir = "";
 
 sub checkDir
 {
-    if (@_[0] =~ /(([^@]+)@(.+))/)
+    if (@_[0] =~ /(([^@]+)@(.+))\.(.*)/)
     {
-	print "$2\n";
 	$dir = getcwd();
-	print "$dir\n";
 	opendir my($dh), $dir or die "cannot open dir\n";
 	my @files = readdir $dh;
 	foreach(@files)
 	{
 	    if ($_ eq $2)
 	    {
+		closedir $dh;
 		return 0;
 	    }
 	}
 	closedir $dh;
     }
+    return 1;
 }
 
 sub connexion
 {
     @_[0]->send("Veuillez rentrer votre adresse mail: ");
     @_[0]->recv($ligne, 1024);
-    while ($ligne !~ /^[^@]+@.+$/i)
+    while ($ligne !~ /([^@]+)(@reseauglo\.ca)/)
     {
 	@_[0]->send("Veuillez rentrer une adresse valide\nVeuillez rentrer votre adresse mail: ");
 	@_[0]->recv($ligne, 1024);
     }
     if (checkDir($ligne) == 0)
     {
-	if ($ligne =~ /(([^@]+)@(.+))/)
+	if ($ligne =~ /(([^@]+)@(.+))\.(.*)/)
 	{
-	    $file = "$dir/$2/passwd";
-	    print "$file\n";
+	    $file = "$dir/$2/config.txt";
 	    open(my $fh, '<:encoding(UTF-8)', $file) or die "Cannot open file\n";
 	    my $row = <$fh>;
 	    close($fh);
@@ -79,7 +78,7 @@ sub creeCompte
 {
     @_[0]->send("Vous avez choisi de creer un compte\nVeuillez indiquer l'adresse mail que vous voulez utiliser: ");
     @_[0]->recv($ligne, 1024);
-    while ($ligne !~ /(([^@]+)@(.+))/)
+    while ($ligne !~ /([^@]+)(@reseauglo\.ca)/)
     {
 	@_[0]->send("Veuillez indiquer l'adresse mail que vous voulez utilser: ");
 	@_[0]->recv($ligne, 1024);
@@ -111,13 +110,11 @@ sub creeCompte
     }
     else
     {
-	if ($address =~ /(([^@]+)@(.+))/)
+	if ($address =~ /(([^@]+)@(.+))\.(.*)/)
 	{
 	    mkdir($2);
 	    $currentDir = getcwd();
-	    $dir = "$currentDir/$2/passwd";
-	    print "$dir\n";
-	    open(PASSWD, ">>$currentDir/$2/passwd") or die "cannot create file\n";
+	    open(PASSWD, ">>$currentDir/$2/config.txt") or die "cannot create file\n";
 	    print PASSWD "$passwd";
 	    close(PASSWD);
 	}
@@ -126,24 +123,33 @@ sub creeCompte
     return 1;
 }
 
-sub printMenu
+sub readMail
 {
-    print "pouet\n";
+    print "readMail()";
+}
+
+sub stats
+{
+    print "stats()";
 }
 
 sub sendMail
 {
     @_[0]->send("Veuillez entrer l'adresse de la personne a laquelle vous voulez envoyer le courriel: ");
-    @_[0]->recv($ligne, 1024);
-    while ($ligne !~ /^[^@]+@.+$/i)
+    @_[0]->recv($address, 1024);
+    while ($address !~ /(([^@]+)@(.+))\.(.*)/)
     {
 	@_[0]->send("500 ERREUR - Adresse incorrecte\r\nVeuillez entrer a nouveau l'adresse de la personne a laquelle vous voulez envoyer le courriel: ");
-	@_[0]->recv($ligne, 1024);
+	@_[0]->recv($address, 1024);
     }
-    #TODO field FROM from user
+    if ($3 eq "reseauglo.ca")
+    {
+	#write into folder
+    }
+    #TODO field FROM, CC, Subject, Data from user
     #TODO if hostname == hostname used for the TP, write mail into the folder
     my $msg = MIME::Lite->new(From=> "tp4\@ulaval.ca",
-			      To => $ligne,
+			      To => $address,
 			      Cc => '',
 			      Subject => "exercice 2",
 			      Data => "topkek");
@@ -153,13 +159,13 @@ sub sendMail
 
 sub menu
 {
+    #TODO
     #1 send mail
-    #9 disconnect
+    #2 read mail
+    #3 stats
     $ligne = "";
     while ($ligne !~ /^quit\r\n$/i)
     {
-	#do not remove this print, cannot go ahead without him
-	#black magic
 	@_[0]->send("Menu principal:\n");
 	@_[0]->send("1 - Envoyer courriel\n");
 	@_[0]->send("9 - Deconnection\n");
@@ -168,7 +174,17 @@ sub menu
 	{
 	    sendMail(@_[0]);
 	}
-	if ($ligne =~ /9\n/)
+	if ($ligne =~ /2\n/)
+	{
+	    #read mail
+	    readMail(@_[0]);
+	}
+	if ($ligne =~ /3\n/)
+	{
+	    #stats
+	    stats(@_[0]);
+	}
+	if ($ligne =~ /4\n/)
 	{
 	    #disconnect
 	    @_[0]->send("999 - Disconnecting\n");
