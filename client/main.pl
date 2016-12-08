@@ -11,7 +11,8 @@ my $help = 0;
 sub help
 {
     #TODO help
-    print "client help\n";
+    print "Aide utilisateur\n";
+    print "Pour lancer le programme: perl mail.pl -d <adresse du serveur> -p 4242\n";
 }
 
 sub main
