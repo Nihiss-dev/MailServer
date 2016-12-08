@@ -86,12 +86,12 @@ sub creeCompte
 	@_[0]->recv($ligne, 1024);
     }
     $address = $ligne;
+    $clientAddress = $ligne;
     $passwdOk = 1;
     while ($passwdOk != 0)
     {
 	@_[0]->send("4242 - Veuillez entrer votre mot de passe: ");
 	@_[0]->recv($ligne, 1024);
-	print "$ligne\n";
 	$passwd = $ligne;
 	@_[0]->send("4242 - Confirmez en entrant a nouveau votre mot de passe: ");
 	@_[0]->recv($ligne, 1024);
@@ -127,12 +127,53 @@ sub creeCompte
 
 sub readMail
 {
-    print "readMail()";
+    $clientAddress =~ /(([^@]+)@(.+))\.(.*)/;
+    $dir = getcwd();
+    $directory = "$dir/$2";
+    opendir my($dh), $directory or die "cannot open dir\n";
+    my @files = readdir $dh;
+    $i = 0;
+    @_[0]->send("Choisissez le courriel a visualiser: ");
+    foreach(@files)
+    {
+	if ($_ ne "." && $_ ne ".." && $_ ne "config.txt")
+	{
+	    @_[0]->send("$i - $_\n");
+	    $i++;
+	}
+    }
+    @_[0]->recv($response, 1024);
+    $index = substr($response, 0, 1) + 3;
+    open(my $fh, "<:encoding(UTF-8)", "$directory/@files[$index]");
+    while (my $row = <$fh>)
+    {
+	chomp $row;
+	@_[0]->send("$row\n");
+    }
+    close($fh);
+    closedir $dh;
+    @_[0]->send("Appuyez sur une touche pour quitter le mail\n");
+    @_[0]->recv($response, 1024);
 }
 
 sub stats
 {
-    print "stats()";
+    $clientAddress =~ /(([^@]+)@(.+))\.(.*)/;
+    $dir = getcwd();
+    $directory = "$dir/$2";
+    opendir my($dh), $directory or die "cannot open dir\n";
+    my @files = readdir $dh;
+    $i = 0;
+    foreach(@files)
+    {
+	if ($_ ne "." && $_ ne ".." && $_ ne "config.txt")
+	{
+	    $i++;
+	}
+    }
+    my $size = (stat $directory)[7];
+    @_[0]->send("Statistiques de votre compte:\n$i courriels\nTaille du dossier en byte: $size\n\nAppuyer sur une touche pour revenir au menu precedent\n");
+    @_[0]->recv($response, 1024);
 }
 
 sub sendMail
@@ -186,7 +227,6 @@ sub sendMail
     #message goes directly in user folder ?
     if ($3 eq "reseauglo")
     {
-	print "reseauglo\n";
 	$currentDir = getcwd();
 	if (checkDir($address) == 0)
 	{
@@ -194,6 +234,14 @@ sub sendMail
 	    open(MAIL, ">>$currentDir/$2/$subject") or die "cannot create file\n";
 	    print MAIL "From: $clientAddress\nTo: $address\nCc: $CC\nSubject: $subject\n$data\n";
 	    close(MAIL);
+	    $CC =~ /(([^@]+)@(.+))\.(.*)/;
+	    if ($3 eq "reseauglo")
+	    {
+		print "$3\n";
+		open(MAIL, ">>$currentDir/$2/$subject") or die "cannot create file\n";
+		print MAIL "From: $clientAddress\nTo: $address\nCc: $CC\nSubject: $subject\n$data\n";
+		close(MAIL);
+	    }
 	    @_[0]->send("250 OK - courriel envoye\n");
 	}
 	else
@@ -227,24 +275,23 @@ sub menu
     $ligne = "";
     while ($ligne !~ /^quit\r\n$/i)
     {
-	@_[0]->send("Menu principal:\n");
-	@_[0]->send("1 - Envoyer courriel\n2 - Consulter vos courriels\n3 - Statistiques de votre compte\n4 - Deconnection\n");
+	@_[0]->send("Menu principal:\n1 - Envoyer courriel\n2 - Consulter vos courriels\n3 - Statistiques de votre compte\n4 - Deconnection\n");
 	@_[0]->recv($ligne, 1024);
 	if ($ligne =~ /1\n/)
 	{
 	    sendMail(@_[0]);
 	}
-	if ($ligne =~ /2\n/)
+	elsif ($ligne =~ /2\n/)
 	{
 	    #read mail
 	    readMail(@_[0]);
 	}
-	if ($ligne =~ /3\n/)
+	elsif ($ligne =~ /3\n/)
 	{
 	    #stats
 	    stats(@_[0]);
 	}
-	if ($ligne =~ /4\n/)
+	elsif ($ligne =~ /4\n/)
 	{
 	    #disconnect
 	    @_[0]->send("999 - Disconnecting\n");
@@ -284,10 +331,8 @@ sub server
     {
 	$new_socket->autoflush(1);
 	$new_socket->send("250 OK - Bienvenue sur le serveur\r\nMenu principal:\n1 - Connexion\n2 - Creer un compte\n\nVeuillez rentrer le chiffre correspondant a votre choix\n");
-	print "\ncommunication $i\n";
 	menuAccueil($new_socket);
 	menu($new_socket);
-	print "Fin communication\n";
 	close $new_socket;
 	$i++;
     }

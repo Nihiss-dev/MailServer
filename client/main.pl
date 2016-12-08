@@ -36,7 +36,7 @@ sub main
 	$ligne = <STDIN>;
 	if ($reponse =~ /^(4242)/)
 	{
-	    while ($ligne !~ /[[:alpha:]]\d/)
+	    while ($ligne !~ /[a-zA-Z]/ && $ligne !~ /[0-9]/)
 	    {
 		print "Votre mot de passe doit contenir au moins 1 lettre et 1 chiffre\n";
 		$ligne = <STDIN>;
@@ -50,6 +50,7 @@ sub main
 	    $connection->send($ligne);
 	}
     }
+    close($connexion);
 }
 
 main();
